@@ -1,0 +1,6 @@
+{
+    "Timer": false,
+    "video_folder": "./utils/data/tests",
+    "model_folder": "./detector",
+    "output_folder": ""
+}
