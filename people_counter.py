@@ -29,7 +29,7 @@ LOW_THRESHOLD = config.get("Low_Threshold", 5)  # 低峰人数阈值，默认5
 # 模型参数
 MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)  # 图像预处理均值
 ageList = ['(0-2)', '(4-6)', '(8-12)', '(15-20)', '(25-32)', '(38-43)', '(48-53)', '(60-100)']  # 年龄分组
-genderList = ['Male', 'Female', 'Unknown']  # 性别分类
+genderList = ['Male', 'Female']  # 性别分类
 
 # 构建模型文件路径
 prototxt_file = os.path.join(config.get("model_folder", "./detector"), "MobileNetSSD_deploy.prototxt")
