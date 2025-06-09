@@ -97,16 +97,25 @@ The following features can be easily enabled/disabled in ```utils/config.json```
 
 ```json
 {
-    "Email_Send": "",
-    "Email_Receive": "",
-    "Email_Password": "",
-    "url": "",
-    "ALERT": false,
-    "Threshold": 10,
-    "Thread": false,
-    "Log": false,
-    "Scheduler": false,
-    "Timer": false
+    // 高峰人数阈值 - 当区域内人数达到或超过此值，则标记为高峰时段
+    "Peak_Threshold": 10,
+    
+    // 低峰人数阈值 - 当区域内人数低于或等于此值，则标记为低峰时段
+    "Low_Threshold": 5,
+    
+    // 是否开启定时退出功能（8小时自动退出）
+    // true: 开启 | false: 关闭
+    "Timer": false,
+    
+    // 视频文件夹路径 - 存放待处理视频的文件夹
+    "video_folder": "./utils/data/tests",
+    
+    // 模型文件夹路径 - 存放AI模型文件的文件夹
+    "model_folder": "./detector",
+    
+    // 输出文件夹路径 - 处理结果的保存位置
+    // 空字符串表示不保存输出视频
+    "output_folder": "",
 }
 ```
 
