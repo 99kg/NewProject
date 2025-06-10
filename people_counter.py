@@ -386,7 +386,7 @@ def process_video(input_video, output_path=None, args=None):
                             overlap_ratio = inter_area / min(face_area, person_area) if min(face_area,
                                                                                             person_area) > 0 else 0
 
-                            if overlap_ratio > 0.3:  # 重叠度超过30%
+                            if overlap_ratio > 0.1:  # 重叠度超过30%
                                 face = frame[max(0, faceBox[1] - 20):min(faceBox[3] + 20, frame.shape[0] - 1),
                                        max(0, faceBox[0] - 20):min(faceBox[2] + 20, frame.shape[1] - 1)]
 
@@ -753,7 +753,7 @@ def predict_gender_age(face_img, genderNet, ageNet, genderList, ageList, MODEL_M
         return "Unknown", "Unknown"  # 返回未知值
 
     # 显示已经识别的人脸
-    # cv2.imshow("Original Face", face_img)
+    cv2.imshow("Original Face", face_img)
 
     try:
         # 预处理人脸图像
@@ -775,7 +775,7 @@ def predict_gender_age(face_img, genderNet, ageNet, genderList, ageList, MODEL_M
         return "Unknown", "Unknown"  # 返回未知值
 
 
-def highlightFace(net, frame, conf_threshold=0.5, draw=False):
+def highlightFace(net, frame, conf_threshold=0.2, draw=False):
     """在帧中检测人脸并可选地绘制边界框"""
     frameOpencvDnn = frame.copy()  # 创建帧的副本
     frameHeight = frameOpencvDnn.shape[0]  # 获取帧高度
