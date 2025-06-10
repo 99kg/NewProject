@@ -116,6 +116,12 @@ The following features can be easily enabled/disabled in ```utils/config.json```
     // 输出文件夹路径 - 处理结果的保存位置
     // 空字符串表示不保存输出视频
     "output_folder": "",
+  
+    // 是否分段输出报告 - true/false
+    "segment_reporting": true,
+  
+    // 报告输出百分比，默认20%
+    "report_percentage": 0.2
 }
 ```
 

@@ -22,9 +22,11 @@ logger = logging.getLogger(__name__)
 with open("utils/config.json", "r") as file:
     config = json.load(file)
 
-# 从配置中获取阈值
+# 从配置中获取阈值和报告设置
 PEAK_THRESHOLD = config.get("Peak_Threshold", 10)  # 高峰人数阈值，默认10
 LOW_THRESHOLD = config.get("Low_Threshold", 5)  # 低峰人数阈值，默认5
+SEGMENT_REPORTING = config.get("segment_reporting", False)  # 是否分段输出报告
+REPORT_PERCENTAGE = config.get("report_percentage", 0.2)  # 报告输出百分比，默认20%
 
 # 模型参数
 MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)  # 图像预处理均值
@@ -65,16 +67,20 @@ def seconds_to_hms(seconds):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def log_data(events, video_name="output"):
+def log_data(events, video_name="output", csv_path=None):
     """将事件记录到CSV文件"""
     if not events:
         logger.warning("No events to log.")
         return
 
-    base_name = os.path.splitext(os.path.basename(video_name))[0]
-    output_path = os.path.join('utils/data/logs', f"{base_name}_counting_data.csv")
+    if csv_path is None:
+        base_name = os.path.splitext(os.path.basename(video_name))[0]
+        csv_path = os.path.join('utils/data/logs', base_name, 'csv', f"{base_name}_counting_data.csv")
+    else:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
-    with open(output_path, 'w', newline='') as myfile:
+    with open(csv_path, 'w', newline='') as myfile:
         wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
         wr.writerow(("ID", "Time", "Gender", "Age"))
 
@@ -85,67 +91,138 @@ def log_data(events, video_name="output"):
                 event["gender"],
                 event["age"]
             ))
-    logger.info(f"Event log saved to: {output_path}")
+    logger.info(f"Event log saved to: {csv_path}")
 
 
 def generate_summary(total_entries, gender_count, age_count, peak_periods, low_periods,
-                     peak_count, low_count, video_name="output"):
-    """生成统计摘要报告"""
-    base_name = os.path.splitext(os.path.basename(video_name))[0]
-    output_path = os.path.join('utils/data/logs', f"{base_name}_summary.txt")
+                     peak_count, low_count, video_name="output", output_path=None, is_final=False):
+    """生成统计摘要报告
+    is_final: 是否为最终报告，如果是则输出阈值和高峰低峰时间段
+    """
+    if output_path is None:
+        base_name = os.path.splitext(os.path.basename(video_name))[0]
+        output_path = os.path.join('utils/data/logs', base_name, 'txt', f"{base_name}_summary.txt")
+    else:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     # 定义儿童年龄组
     child_ages = ['(0-2)', '(4-6)', '(8-12)']
     children_count = sum(age_count.get(age, 0) for age in child_ages)
 
     with open(output_path, 'w') as f:
-        f.write("---------------------------------------------------------------------\n")
+        f.write("------------------------------------------\n")
         f.write(f"总人数：{total_entries}人\n")
         f.write(f"男性：{gender_count.get('Male', 0)}人\n")
         f.write(f"女性：{gender_count.get('Female', 0)}人\n")
         f.write(f"未知性别：{gender_count.get('Unknown', 0)}人\n")
         f.write(f"儿童：{children_count}人\n")
-        f.write("---------------------------------------------------------------------\n")
+        f.write("-----------------------------------------\n")
 
-        # 添加阈值信息
-        f.write(f"[阈值设置]\n高峰阈值: {PEAK_THRESHOLD}人, 低峰阈值: {LOW_THRESHOLD}人\n")
-        f.write(f"最高人数：{peak_count}人, 最低人数：{low_count}人\n")
-        f.write("---------------------------------------------------------------------\n")
+        # 如果是最终报告，则输出阈值设置和高峰低峰时间段
+        if is_final:
+            # 添加阈值信息
+            f.write(f"[阈值设置]\n高峰阈值: {PEAK_THRESHOLD}人, 低峰阈值: {LOW_THRESHOLD}人\n")
+            f.write(f"最高人数：{peak_count}人, 最低人数：{low_count}人\n")
+            f.write("-----------------------------------------\n")
 
-        # 输出所有高峰时间段
-        f.write("高峰时间段：\n")
-        if peak_periods:
-            # 过滤掉无效时间段
-            valid_peak_periods = [p for p in peak_periods if p[0] != p[1]]
-            if valid_peak_periods:
-                for period in valid_peak_periods:
-                    start_time, end_time = period
-                    f.write(f"{start_time}~{end_time}\n")
+            # 输出所有高峰时间段
+            f.write("高峰时间段：\n")
+            if peak_periods:
+                # 过滤掉无效时间段
+                valid_peak_periods = [p for p in peak_periods if p[0] != p[1]]
+                if valid_peak_periods:
+                    # 去重处理
+                    unique_peak_periods = []
+                    for period in valid_peak_periods:
+                        if period not in unique_peak_periods:
+                            unique_peak_periods.append(period)
+
+                    for period in unique_peak_periods:
+                        start_time, end_time = period
+                        f.write(f"{start_time}~{end_time}\n")
+                else:
+                    f.write("无有效高峰时间段\n")
             else:
-                f.write("无有效高峰时间段\n")
-        else:
-            f.write("无高峰时间段\n")
+                f.write("无高峰时间段\n")
 
-        # 输出所有低峰时间段
-        f.write("\n低峰时间段：\n")
-        if low_periods:
-            # 过滤掉无效时间段
-            valid_low_periods = [p for p in low_periods if p[0] != p[1]]
-            if valid_low_periods:
-                for period in valid_low_periods:
-                    start_time, end_time = period
-                    # 确保时间段从00:00:01开始
-                    if start_time == "00:00:00":
-                        start_time = "00:00:01"
-                    f.write(f"{start_time}~{end_time}\n")
+            # 输出所有低峰时间段
+            f.write("\n低峰时间段：\n")
+            if low_periods:
+                # 过滤掉无效时间段
+                valid_low_periods = [p for p in low_periods if p[0] != p[1]]
+                if valid_low_periods:
+                    # 去重处理
+                    unique_low_periods = []
+                    for period in valid_low_periods:
+                        if period not in unique_low_periods:
+                            unique_low_periods.append(period)
+
+                    for period in unique_low_periods:
+                        start_time, end_time = period
+                        # 确保时间段从00:00:01开始
+                        if start_time == "00:00:00":
+                            start_time = "00:00:01"
+                        f.write(f"{start_time}~{end_time}\n")
+                else:
+                    f.write("无有效低峰时间段\n")
             else:
-                f.write("无有效低峰时间段\n")
-        else:
-            f.write("无低峰时间段\n")
+                f.write("无低峰时间段\n")
 
-        f.write("---------------------------------------------------------------------\n")
+        f.write("-----------------------------------------\n")
 
     logger.info(f"Summary report generated: {output_path}")
+
+
+def output_segment_report(video_name, segment_percentage, events, total_count, gender_count,
+                          age_count, peak_periods, low_periods, peak_count, low_count):
+    """输出分段报告"""
+    base_name = os.path.splitext(os.path.basename(video_name))[0]
+
+    # 生成TXT报告文件名
+    if segment_percentage == 1.0:
+        txt_filename = f"{base_name}_summary.txt"
+    else:
+        txt_filename = f"{base_name}_summary_{int(segment_percentage * 100)}percent.txt"
+
+    txt_folder = os.path.join('utils/data/logs', base_name, 'txt')
+    txt_path = os.path.join(txt_folder, txt_filename)
+
+    # 输出TXT报告
+    generate_summary(
+        total_entries=total_count,
+        gender_count=gender_count,
+        age_count=age_count,
+        peak_periods=peak_periods,
+        low_periods=low_periods,
+        peak_count=peak_count,
+        low_count=low_count,
+        output_path=txt_path,
+        video_name=video_name,
+        is_final=(segment_percentage == 1.0)  # 仅当100%时标记为最终报告
+    )
+
+
+def get_current_periods(in_peak, in_low, current_peak_start, current_low_start, current_time):
+    """获取当前所有时间段（包括未完成的）"""
+    current_peak_periods = []
+    current_low_periods = []
+
+    # 添加当前高峰时间段（如果处于高峰）
+    if in_peak and current_peak_start is not None:
+        current_peak_periods.append((
+            seconds_to_hms(current_peak_start),
+            seconds_to_hms(current_time)
+        ))
+
+    # 添加当前低峰时间段（如果处于低峰）
+    if in_low and current_low_start is not None:
+        current_low_periods.append((
+            seconds_to_hms(current_low_start),
+            seconds_to_hms(current_time)
+        ))
+
+    return current_peak_periods, current_low_periods
 
 
 def process_video(input_video, output_path=None, args=None):
@@ -160,8 +237,21 @@ def process_video(input_video, output_path=None, args=None):
     if isinstance(input_video, str):
         logger.info(f"Processing {os.path.basename(input_video)}...")
         vs = cv2.VideoCapture(input_video)
+        # 获取视频总帧数
+        total_frames = int(vs.get(cv2.CAP_PROP_FRAME_COUNT))
     else:
         vs = input_video
+        total_frames = None  # 实时视频流没有总帧数
+
+    # 创建视频专用的输出文件夹
+    video_base_name = "output"
+    if isinstance(input_video, str):
+        video_base_name = os.path.splitext(os.path.basename(input_video))[0]
+    video_output_folder = os.path.join('utils/data/logs', video_base_name)
+    csv_folder = os.path.join(video_output_folder, 'csv')
+    txt_folder = os.path.join(video_output_folder, 'txt')
+    os.makedirs(csv_folder, exist_ok=True)
+    os.makedirs(txt_folder, exist_ok=True)
 
     # 获取视频帧率
     fps_video = vs.get(cv2.CAP_PROP_FPS)
@@ -216,6 +306,10 @@ def process_video(input_video, output_path=None, args=None):
 
     # 视频开始时间偏移量（跳过0秒）
     start_time_offset = 0.01  # 0.01秒，相当于00:00:01
+
+    # 分段报告设置
+    segment_reports_done = []  # 存储已完成的报告百分比
+    next_report_percentage = REPORT_PERCENTAGE  # 下一个报告百分比
 
     # 主循环：处理视频每一帧
     while True:
@@ -363,7 +457,7 @@ def process_video(input_video, output_path=None, args=None):
                 current_peak_start = None
 
         # 检查是否进入低峰时间段
-        if current_count <= LOW_THRESHOLD and current_count > 0:  # 修复1: 忽略0人情况
+        if current_count <= LOW_THRESHOLD and current_count > 0:  # 忽略0人情况
             if not in_low_period:
                 # 开始新的低峰时间段
                 in_low_period = True
@@ -519,6 +613,48 @@ def process_video(input_video, output_path=None, args=None):
         if config.get("Timer", False) and (time.time() - processing_start_time) > 28800:
             break
 
+        # 分段报告处理
+        if SEGMENT_REPORTING and total_frames is not None:
+            current_percentage = totalFrames / total_frames
+            # 检查是否需要生成分段报告
+            if current_percentage >= next_report_percentage:
+                # 生成当前进度的报告
+                segment_percentage = next_report_percentage
+                logger.info(f"[REPORT] Generating {int(segment_percentage * 100)}% segment report")
+
+                # 获取当前时间段（包括未完成的）
+                current_peak, current_low = get_current_periods(
+                    in_peak_period, in_low_period,
+                    current_peak_start, current_low_start,
+                    current_video_time_sec
+                )
+
+                # 合并已完成和当前时间段
+                report_peak_periods = peak_periods.copy() + current_peak
+                report_low_periods = low_periods.copy() + current_low
+
+                # 输出分段报告
+                output_segment_report(
+                    video_name=input_video,
+                    segment_percentage=segment_percentage,
+                    events=events,
+                    total_count=total_count,
+                    gender_count=gender_count,
+                    age_count=age_count,
+                    peak_periods=report_peak_periods,  # 使用合并后的时间段
+                    low_periods=report_low_periods,
+                    peak_count=peak_count,
+                    low_count=low_count
+                )
+
+                # 更新下一个报告点
+                next_report_percentage += REPORT_PERCENTAGE
+                segment_reports_done.append(segment_percentage)
+
+                # 确保不超过100%
+                if next_report_percentage > 1.0:
+                    next_report_percentage = 1.0
+
     # 处理结束前检查当前时间段
     if in_peak_period and current_peak_start is not None:
         # 确保结束时间大于开始时间
@@ -570,20 +706,42 @@ def process_video(input_video, output_path=None, args=None):
     logger.info(f"[INFO] Time elapsed: {int(mins)}m{secs:.2f}s")  # 记录处理时间
     logger.info(f"[INFO] Avg FPS: {fps.fps():.2f}")  # 记录平均帧率
 
-    # 记录所有事件到CSV文件
-    log_data(events, video_name=input_video)  # 调用log_data函数保存事件数据
+    # 输出CSV文件（无论是否分段报告都需要）
+    csv_filename = os.path.join('utils/data/logs', video_base_name, 'csv', f"{video_base_name}_counting_data.csv")
+    log_data(events, video_name=input_video, csv_path=csv_filename)  # 调用log_data函数保存事件数据
 
-    # 生成总结报告
-    generate_summary(  # 调用generate_summary函数生成统计报告
-        total_entries=total_count,  # 总人数
-        gender_count=gender_count,  # 性别统计
-        age_count=age_count,  # 年龄统计
-        peak_periods=peak_periods,  # 高峰时间段
-        low_periods=low_periods,  # 低峰时间段
-        peak_count=peak_count,  # 最高人数
-        low_count=low_count,  # 最低人数
-        video_name=input_video  # 视频文件名
-    )
+    # 输出最终报告（使用已经更新过的peak_periods和low_periods）
+    if SEGMENT_REPORTING:
+        # 检查是否已经输出了100%的报告
+        if 1.0 not in segment_reports_done:
+            logger.info("[REPORT] Generating final 100% segment report")
+            output_segment_report(
+                video_name=input_video,
+                segment_percentage=1.0,
+                events=events,
+                total_count=total_count,
+                gender_count=gender_count,
+                age_count=age_count,
+                peak_periods=peak_periods,  # 直接使用peak_periods
+                low_periods=low_periods,  # 直接使用low_periods
+                peak_count=peak_count,
+                low_count=low_count
+            )
+    else:
+        # 生成总结报告
+        txt_filename = os.path.join('utils/data/logs', video_base_name, 'txt', f"{video_base_name}_summary.txt")
+        generate_summary(  # 调用generate_summary函数生成统计报告
+            total_entries=total_count,  # 总人数
+            gender_count=gender_count,  # 性别统计
+            age_count=age_count,  # 年龄统计
+            peak_periods=peak_periods,  # 高峰时间段
+            low_periods=low_periods,  # 低峰时间段
+            peak_count=peak_count,  # 最高人数
+            low_count=low_count,  # 最低人数
+            video_name=input_video,  # 视频文件名
+            output_path=txt_filename,
+            is_final=True  # 标记为最终报告
+        )
 
     # 关闭所有OpenCV窗口
     cv2.destroyAllWindows()
