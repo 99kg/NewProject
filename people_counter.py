@@ -27,6 +27,7 @@ PEAK_THRESHOLD = config.get("Peak_Threshold", 10)  # 高峰人数阈值，默认
 LOW_THRESHOLD = config.get("Low_Threshold", 5)  # 低峰人数阈值，默认5
 SEGMENT_REPORTING = config.get("segment_reporting", False)  # 是否分段输出报告
 REPORT_PERCENTAGE = config.get("report_percentage", 0.2)  # 报告输出百分比，默认20%
+SAVE_FACES = config.get("save_faces", False)  # 是否保存人脸图片
 
 # 模型参数
 MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)  # 图像预处理均值
@@ -48,6 +49,11 @@ net = cv2.dnn.readNetFromCaffe(prototxt_file, model_file)  # 行人检测模型
 faceNet = cv2.dnn.readNet(face_prototxt_file, face_model_file)  # 人脸检测模型
 ageNet = cv2.dnn.readNet(age_prototxt_file, age_model_file)  # 年龄预测模型
 genderNet = cv2.dnn.readNet(gender_prototxt_file, gender_model_file)  # 性别预测模型
+
+# 创建img目录
+if SAVE_FACES:
+    img_dir = os.path.join(os.getcwd(), 'img')
+    os.makedirs(img_dir, exist_ok=True)  # 确保目录存在
 
 
 def parse_arguments():
@@ -165,8 +171,7 @@ def generate_summary(total_entries, gender_count, age_count, peak_periods, low_p
                     f.write("无有效低峰时间段\n")
             else:
                 f.write("无低峰时间段\n")
-
-        f.write("-----------------------------------------\n")
+            f.write("-----------------------------------------\n")
 
     logger.info(f"Summary report generated: {output_path}")
 
@@ -250,6 +255,11 @@ def process_video(input_video, output_path=None, args=None):
     os.makedirs(csv_folder, exist_ok=True)
     os.makedirs(txt_folder, exist_ok=True)
 
+    # 为当前视频创建独立的人脸目录
+    if SAVE_FACES:
+        face_dir = os.path.join(img_dir, video_base_name)
+        os.makedirs(face_dir, exist_ok=True)
+
     # 获取视频帧率
     fps_video = vs.get(cv2.CAP_PROP_FPS)
     if fps_video <= 0:
@@ -308,6 +318,8 @@ def process_video(input_video, output_path=None, args=None):
     segment_reports_done = []  # 存储已完成的报告百分比
     next_report_percentage = REPORT_PERCENTAGE  # 下一个报告百分比
 
+    face_counter = 1  # 初始化人脸计数器
+
     # 主循环：处理视频每一帧
     while True:
         ret, frame = vs.read()
@@ -339,8 +351,30 @@ def process_video(input_video, output_path=None, args=None):
             trackers = []  # 重置跟踪器
             temp_objects = []  # 每轮检测开始时清空临时对象
 
-            # 关键修改：先进行人脸检测并绘制人脸框
-            frame, faceBoxes = highlightFace(faceNet, frame, draw=True)
+            # 先进行人脸检测（不绘制）
+            faceBoxes = highlightFace(faceNet, frame)
+
+            # 保存干净的人脸图片（在绘制之前）
+            for faceBox in faceBoxes:
+                x1, y1, x2, y2 = faceBox
+                # 提取人脸区域（带20像素边界）
+                face_img = frame[max(0, y1 - 20):min(y2 + 20, H - 1), max(0, x1 - 20):min(x2 + 20, W - 1)]
+
+                if face_img.size > 0 and SAVE_FACES:
+                    # 生成文件名并保存原始人脸图片（不带白框和文字）
+                    filename = f"face_{face_counter}.jpg"
+                    filepath = os.path.join(face_dir, filename)
+                    cv2.imwrite(filepath, face_img)
+                    logger.info(f"[INFO] Saved detected face to: {filepath}")
+                    face_counter += 1
+
+            # 然后在视频帧上绘制白框和文字
+            for faceBox in faceBoxes:
+                x1, y1, x2, y2 = faceBox
+                # 白色矩形框
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
+                # 添加标签
+                cv2.putText(frame, "Face", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
             # 使用MobileNet SSD进行目标检测
             blob = cv2.dnn.blobFromImage(frame, 0.007843, (W, H), 127.5)
@@ -748,12 +782,9 @@ def process_video(input_video, output_path=None, args=None):
 
 
 def predict_gender_age(face_img, genderNet, ageNet, genderList, ageList, MODEL_MEAN_VALUES):
-    """预测给定人脸图像的性别和年龄"""
+    """预测给定人脸图像的性别和年龄，不保存图片"""
     if face_img.size == 0:  # 检查是否为空图像
         return "Unknown", "Unknown"  # 返回未知值
-
-    # 显示已经识别的人脸
-    cv2.imshow("Original Face", face_img)
 
     try:
         # 预处理人脸图像
@@ -775,14 +806,13 @@ def predict_gender_age(face_img, genderNet, ageNet, genderList, ageList, MODEL_M
         return "Unknown", "Unknown"  # 返回未知值
 
 
-def highlightFace(net, frame, conf_threshold=0.2, draw=False):
-    """在帧中检测人脸并可选地绘制边界框"""
-    frameOpencvDnn = frame.copy()  # 创建帧的副本
-    frameHeight = frameOpencvDnn.shape[0]  # 获取帧高度
-    frameWidth = frameOpencvDnn.shape[1]  # 获取帧宽度
+def highlightFace(net, frame, conf_threshold=0.2):
+    """在帧中检测人脸，只返回人脸框坐标，不绘制边界框"""
+    frameHeight = frame.shape[0]  # 获取帧高度
+    frameWidth = frame.shape[1]  # 获取帧宽度
 
     # 预处理图像
-    blob = cv2.dnn.blobFromImage(frameOpencvDnn, 1.0, (300, 300), [104, 117, 123], True, False)
+    blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), [104, 117, 123], True, False)
 
     net.setInput(blob)  # 设置输入
     detections = net.forward()  # 进行人脸检测
@@ -799,15 +829,7 @@ def highlightFace(net, frame, conf_threshold=0.2, draw=False):
             y2 = int(detections[0, 0, i, 6] * frameHeight)
             faceBoxes.append([x1, y1, x2, y2])  # 添加到人脸框列表
 
-            if draw:  # 如果需要绘制边界框
-                # 绘制白色矩形框（BGR格式：(255, 255, 255)是白色）
-                cv2.rectangle(frameOpencvDnn, (x1, y1), (x2, y2), (255, 255, 255), 2)  # 2是线宽
-                # 添加文本标签
-                label = f"Face: {confidence:.2f}"  # 显示置信度
-                cv2.putText(frameOpencvDnn, label, (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-    return frameOpencvDnn, faceBoxes  # 返回带标记的帧和人脸框列表
+    return faceBoxes  # 只返回人脸框坐标
 
 
 def people_counter():

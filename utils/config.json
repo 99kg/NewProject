@@ -6,5 +6,6 @@
     "model_folder": "./detector",
     "output_folder": "",
     "segment_reporting": false,
-    "report_percentage": 0.2
+    "report_percentage": 0.2,
+    "save_faces": true
 }

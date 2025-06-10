@@ -120,8 +120,11 @@ The following features can be easily enabled/disabled in ```utils/config.json```
     // 是否分段输出报告 - true/false
     "segment_reporting": true,
   
-    // 报告输出百分比，默认20%
-    "report_percentage": 0.2
+    // 报告输出百分比 - 默认:20%
+    "report_percentage": 0.2,
+  
+    // 是否保存人脸图片 - 默认:false
+    "save_faces": false
 }
 ```
 
