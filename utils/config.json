@@ -1,10 +1,10 @@
 {
-    "Peak_Threshold": 12,
-    "Low_Threshold": 8,
+    "Peak_Threshold": 5,
+    "Low_Threshold": 3,
     "Timer": false,
     "video_folder": "./utils/data/tests",
     "model_folder": "./detector",
     "output_folder": "",
-    "segment_reporting": true,
+    "segment_reporting": false,
     "report_percentage": 0.2
 }

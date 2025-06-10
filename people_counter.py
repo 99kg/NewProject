@@ -160,9 +160,6 @@ def generate_summary(total_entries, gender_count, age_count, peak_periods, low_p
 
                     for period in unique_low_periods:
                         start_time, end_time = period
-                        # 确保时间段从00:00:01开始
-                        if start_time == "00:00:00":
-                            start_time = "00:00:01"
                         f.write(f"{start_time}~{end_time}\n")
                 else:
                     f.write("无有效低峰时间段\n")
@@ -426,7 +423,7 @@ def process_video(input_video, output_path=None, args=None):
         if current_count > peak_count:
             peak_count = current_count
 
-        # 修复1: 更新最低人数统计（忽略0值）
+        # 更新最低人数统计（忽略0值）
         if current_count > 0:  # 只考虑有人的情况
             if low_count is None:
                 low_count = current_count
@@ -686,7 +683,7 @@ def process_video(input_video, output_path=None, args=None):
 
     validate_events(events)
 
-    # 修复3: 确保事件数量与总人数一致
+    # 确保事件数量与总人数一致
     if len(events) != total_count:
         logger.warning(f"事件数量({len(events)})与总人数({total_count})不一致，正在修复...")
         # 创建唯一对象ID列表
@@ -755,7 +752,7 @@ def predict_gender_age(face_img, genderNet, ageNet, genderList, ageList, MODEL_M
     if face_img.size == 0:  # 检查是否为空图像
         return "Unknown", "Unknown"  # 返回未知值
 
-    # 显示已经识别的人脸（已注释掉）
+    # 显示已经识别的人脸
     # cv2.imshow("Original Face", face_img)
 
     try:
