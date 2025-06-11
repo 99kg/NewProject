@@ -118,22 +118,22 @@ def generate_summary(total_entries, gender_count, age_count, peak_periods, low_p
 
     with open(output_path, 'w') as f:
         f.write("------------------------------------------\n")
-        f.write(f"总人数：{total_entries}人\n")
-        f.write(f"男性：{gender_count.get('Male', 0)}人\n")
-        f.write(f"女性：{gender_count.get('Female', 0)}人\n")
-        f.write(f"未知性别：{gender_count.get('Unknown', 0)}人\n")
-        f.write(f"儿童：{children_count}人\n")
+        f.write(f"总人数:{total_entries}人\n")
+        f.write(f"男性:{gender_count.get('Male', 0)}人\n")
+        f.write(f"女性:{gender_count.get('Female', 0)}人\n")
+        f.write(f"未知性别:{gender_count.get('Unknown', 0)}人\n")
+        f.write(f"儿童:{children_count}人\n")
         f.write("-----------------------------------------\n")
 
         # 如果是最终报告，则输出阈值设置和高峰低峰时间段
         if is_final:
             # 添加阈值信息
             f.write(f"[阈值设置]\n高峰阈值: {PEAK_THRESHOLD}人, 低峰阈值: {LOW_THRESHOLD}人\n")
-            f.write(f"最高人数：{peak_count}人, 最低人数：{low_count}人\n")
+            f.write(f"最高人数:{peak_count}人, 最低人数:{low_count}人\n")
             f.write("-----------------------------------------\n")
 
             # 输出所有高峰时间段
-            f.write("高峰时间段：\n")
+            f.write("高峰时间段:\n")
             if peak_periods:
                 # 过滤掉无效时间段
                 valid_peak_periods = [p for p in peak_periods if p[0] != p[1]]
@@ -153,7 +153,7 @@ def generate_summary(total_entries, gender_count, age_count, peak_periods, low_p
                 f.write("无高峰时间段\n")
 
             # 输出所有低峰时间段
-            f.write("\n低峰时间段：\n")
+            f.write("\n低峰时间段:\n")
             if low_periods:
                 # 过滤掉无效时间段
                 valid_low_periods = [p for p in low_periods if p[0] != p[1]]
@@ -228,7 +228,7 @@ def get_current_periods(in_peak, in_low, current_peak_start, current_low_start, 
 
 
 def process_video(input_video, output_path=None, args=None):
-    """主处理函数：处理视频流并进行人数统计"""
+    """主处理函数:处理视频流并进行人数统计"""
     # 定义目标检测类别
     CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
                "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
@@ -320,7 +320,7 @@ def process_video(input_video, output_path=None, args=None):
 
     face_counter = 1  # 初始化人脸计数器
 
-    # 主循环：处理视频每一帧
+    # 主循环:处理视频每一帧
     while True:
         ret, frame = vs.read()
         if not ret:
@@ -564,7 +564,7 @@ def process_video(input_video, output_path=None, args=None):
                                     event["age"] = to.age
                                     logger.info(f"[INFO] Updated event for ID:{to.objectID} to {to.gender}/{to.age}")
 
-                                    # 更新统计信息：减去旧的Unknown计数，加上新的
+                                    # 更新统计信息:减去旧的Unknown计数，加上新的
                                     if old_gender in gender_count:
                                         gender_count[old_gender] -= 1
                                     if old_age in age_count:
@@ -833,7 +833,7 @@ def highlightFace(net, frame, conf_threshold=0.2):
 
 
 def people_counter():
-    """主函数：处理视频文件中的人流计数"""
+    """主函数:处理视频文件中的人流计数"""
     args = parse_arguments()  # 解析命令行参数
 
     # 获取视频文件夹路径
