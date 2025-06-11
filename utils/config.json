@@ -7,5 +7,5 @@
     "output_folder": "",
     "segment_reporting": false,
     "report_percentage": 0.2,
-    "save_faces": true
+    "save_faces": false
 }
