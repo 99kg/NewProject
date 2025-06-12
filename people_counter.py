@@ -230,7 +230,7 @@ def get_current_periods(in_peak, in_low, current_peak_start, current_low_start, 
 def process_video(input_video, output_path=None, args=None):
     """主处理函数:处理视频流并进行人数统计"""
     # 定义目标检测类别
-    CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
+    classes = ["background", "aeroplane", "bicycle", "bird", "boat",
                "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
                "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
                "sofa", "train", "tvmonitor"]
@@ -239,11 +239,11 @@ def process_video(input_video, output_path=None, args=None):
     if isinstance(input_video, str):
         logger.info(f"Processing {os.path.basename(input_video)}...")
         vs = cv2.VideoCapture(input_video)
-        # 获取视频总帧数
-        total_frames = int(vs.get(cv2.CAP_PROP_FRAME_COUNT))
+        # 存储视频的总帧数
+        total_frames_all = int(vs.get(cv2.CAP_PROP_FRAME_COUNT))
     else:
         vs = input_video
-        total_frames = None  # 实时视频流没有总帧数
+        total_frames_all = None  # 实时视频流没有总帧数
 
     # 创建视频专用的输出文件夹
     video_base_name = "output"
@@ -267,16 +267,16 @@ def process_video(input_video, output_path=None, args=None):
         logger.warning(f"Unable to get video FPS, using default: {fps_video}")
 
     writer = None
-    W, H = None, None
+    w, h = None, None
 
     # 初始化跟踪器
     ct = CentroidTracker(maxDisappeared=40, maxDistance=50)  # 质心跟踪器
     trackers = []  # 跟踪器列表
-    trackableObjects = {}  # 可跟踪对象字典
+    trackable_objects = {}  # 可跟踪对象字典
 
     # 初始化计数器
-    totalFrames = 0  # 总帧数
-    total_count = 0  # 总人数计数器
+    total_frames = 0  # 帧计数器
+    total_count = 0  # 人数计数器
     events = []  # 存储所有事件 - 使用字典列表
 
     # 初始化统计数据
@@ -331,34 +331,34 @@ def process_video(input_video, output_path=None, args=None):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # 初始化帧尺寸
-        if W is None or H is None:
-            (H, W) = frame.shape[:2]
+        if w is None or h is None:
+            (h, w) = frame.shape[:2]
 
         # 初始化视频写入器
         if output_path and writer is None:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter(output_path, fourcc, 30, (W, H), True)
+            writer = cv2.VideoWriter(output_path, fourcc, 30, (w, h), True)
 
         status = "Waiting"
         rects = []  # 检测框列表
 
         # 计算当前视频时间 (从视频开始经过的秒数) - 添加偏移量跳过0秒
-        current_video_time_sec = totalFrames / fps_video + start_time_offset
+        current_video_time_sec = total_frames / fps_video + start_time_offset
 
         # 检测帧处理（每隔skip_frames帧进行一次目标检测）
-        if totalFrames % args.get("skip_frames", 30) == 0:
+        if total_frames % args.get("skip_frames", 30) == 0:
             status = "Detecting"
             trackers = []  # 重置跟踪器
             temp_objects = []  # 每轮检测开始时清空临时对象
 
             # 先进行人脸检测（不绘制）
-            faceBoxes = highlightFace(faceNet, frame)
+            face_boxes = highlight_face(faceNet, frame)
 
             # 保存干净的人脸图片（在绘制之前）
-            for faceBox in faceBoxes:
+            for faceBox in face_boxes:
                 x1, y1, x2, y2 = faceBox
                 # 提取人脸区域（带20像素边界）
-                face_img = frame[max(0, y1 - 20):min(y2 + 20, H - 1), max(0, x1 - 20):min(x2 + 20, W - 1)]
+                face_img = frame[max(0, y1 - 20):min(y2 + 20, h - 1), max(0, x1 - 20):min(x2 + 20, w - 1)]
 
                 if face_img.size > 0 and SAVE_FACES:
                     # 生成文件名并保存原始人脸图片（不带白框和文字）
@@ -369,7 +369,7 @@ def process_video(input_video, output_path=None, args=None):
                     face_counter += 1
 
             # 然后在视频帧上绘制白框和文字
-            for faceBox in faceBoxes:
+            for faceBox in face_boxes:
                 x1, y1, x2, y2 = faceBox
                 # 白色矩形框
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
@@ -377,7 +377,7 @@ def process_video(input_video, output_path=None, args=None):
                 cv2.putText(frame, "Face", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
             # 使用MobileNet SSD进行目标检测
-            blob = cv2.dnn.blobFromImage(frame, 0.007843, (W, H), 127.5)
+            blob = cv2.dnn.blobFromImage(frame, 0.007843, (w, h), 127.5)
             net.setInput(blob)
             detections = net.forward()
 
@@ -386,37 +386,37 @@ def process_video(input_video, output_path=None, args=None):
                 confidence = detections[0, 0, i, 2]
                 if confidence > args.get("confidence", 0.4):
                     idx = int(detections[0, 0, i, 1])
-                    if CLASSES[idx] != "person":
+                    if classes[idx] != "person":
                         continue
 
                     # 获取边界框坐标
-                    box = detections[0, 0, i, 3:7] * np.array([W, H, W, H])
-                    (startX, startY, endX, endY) = box.astype("int")
+                    box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+                    (start_x, start_y, end_x, end_y) = box.astype("int")
 
                     # 创建跟踪器
                     tracker = dlib.correlation_tracker()
-                    rect = dlib.rectangle(startX, startY, endX, endY)
+                    rect = dlib.rectangle(start_x, start_y, end_x, end_y)
                     tracker.start_track(rgb, rect)
                     trackers.append(tracker)
 
                     # 计算检测框中心
-                    box_center = ((startX + endX) // 2, (startY + endY) // 2)
+                    box_center = ((start_x + end_x) // 2, (start_y + end_y) // 2)
 
                     # 人脸检测结果已经在上面的highlightFace调用中获取
-                    if faceBoxes:
+                    if face_boxes:
                         # 尝试匹配所有人脸
-                        for faceBox in faceBoxes:
+                        for faceBox in face_boxes:
                             # 计算人脸框和人物框的重叠度
                             face_area = (faceBox[2] - faceBox[0]) * (faceBox[3] - faceBox[1])
-                            person_area = (endX - startX) * (endY - startY)
+                            person_area = (end_x - start_x) * (end_y - start_y)
 
                             # 计算交集
-                            xA = max(startX, faceBox[0])
-                            yA = max(startY, faceBox[1])
-                            xB = min(endX, faceBox[2])
-                            yB = min(endY, faceBox[3])
+                            x_a = max(start_x, faceBox[0])
+                            y_a = max(start_y, faceBox[1])
+                            x_b = min(end_x, faceBox[2])
+                            y_b = min(end_y, faceBox[3])
 
-                            inter_area = max(0, xB - xA) * max(0, yB - yA)
+                            inter_area = max(0, x_b - x_a) * max(0, y_b - y_a)
                             overlap_ratio = inter_area / min(face_area, person_area) if min(face_area,
                                                                                             person_area) > 0 else 0
 
@@ -488,7 +488,7 @@ def process_video(input_video, output_path=None, args=None):
                 current_peak_start = None
 
         # 检查是否进入低峰时间段
-        if current_count <= LOW_THRESHOLD and current_count > 0:  # 忽略0人情况
+        if LOW_THRESHOLD >= current_count > 0:  # 忽略0人情况
             if not in_low_period:
                 # 开始新的低峰时间段
                 in_low_period = True
@@ -519,11 +519,11 @@ def process_video(input_video, output_path=None, args=None):
 
         # 处理每个跟踪对象
         for (objectID, centroid) in objects.items():
-            to = trackableObjects.get(objectID, None)
+            to = trackable_objects.get(objectID, None)
 
             if to is None:
                 to = TrackableObject(objectID, centroid)
-                trackableObjects[objectID] = to
+                trackable_objects[objectID] = to
 
             else:
                 # 更新现有对象位置
@@ -596,7 +596,7 @@ def process_video(input_video, output_path=None, args=None):
                 if to.age in age_count:
                     age_count[to.age] += 1
 
-            trackableObjects[objectID] = to
+            trackable_objects[objectID] = to
 
             # 在画面上显示对象信息
             display_text = f"ID {to.objectID}"  # 显示对象的永久ID
@@ -608,8 +608,8 @@ def process_video(input_video, output_path=None, args=None):
 
         # 显示统计信息
         info = [
-            (f"Total: {total_count}", (10, H - 20)),  # 总人数
-            (f"Current: {current_count}", (10, H - 40))  # 当前人数
+            (f"Total: {total_count}", (10, h - 20)),  # 总人数
+            (f"Current: {current_count}", (10, h - 40))  # 当前人数
         ]
 
         # 添加当前状态信息
@@ -621,7 +621,7 @@ def process_video(input_video, output_path=None, args=None):
         else:
             status_info = f"NORMAL ({current_count})"
 
-        cv2.putText(frame, status_info, (W - 150, H - 20),
+        cv2.putText(frame, status_info, (w - 150, h - 20),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
         for text, pos in info:
@@ -637,7 +637,7 @@ def process_video(input_video, output_path=None, args=None):
         if key == ord("q"):
             break
 
-        totalFrames += 1
+        total_frames += 1
         fps.update()
 
         # 定时退出检查（8小时超时）
@@ -645,8 +645,8 @@ def process_video(input_video, output_path=None, args=None):
             break
 
         # 分段报告处理
-        if SEGMENT_REPORTING and total_frames is not None:
-            current_percentage = totalFrames / total_frames
+        if SEGMENT_REPORTING and total_frames_all is not None:
+            current_percentage = total_frames / total_frames_all
             # 检查是否需要生成分段报告
             if current_percentage >= next_report_percentage:
                 # 生成当前进度的报告
@@ -722,7 +722,7 @@ def process_video(input_video, output_path=None, args=None):
         logger.warning(f"Event count ({len(events)}) does not match total people count ({total_count}), fixing...")
         # 创建唯一对象ID列表
         unique_ids = set()
-        for to in trackableObjects.values():
+        for to in trackable_objects.values():
             if to.counted:
                 unique_ids.add(to.objectID)
 
@@ -781,24 +781,24 @@ def process_video(input_video, output_path=None, args=None):
         writer.release()  # 释放视频写入器资源
 
 
-def predict_gender_age(face_img, genderNet, ageNet, genderList, ageList, MODEL_MEAN_VALUES):
+def predict_gender_age(face_img, gender_net, age_net, gender_list, age_list, model_mean_values):
     """预测给定人脸图像的性别和年龄，不保存图片"""
     if face_img.size == 0:  # 检查是否为空图像
         return "Unknown", "Unknown"  # 返回未知值
 
     try:
         # 预处理人脸图像
-        blob = cv2.dnn.blobFromImage(face_img, 1.0, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
+        blob = cv2.dnn.blobFromImage(face_img, 1.0, (227, 227), model_mean_values, swapRB=False)
 
         # 预测性别
-        genderNet.setInput(blob)
-        genderPreds = genderNet.forward()
-        gender = genderList[genderPreds[0].argmax()]  # 获取最高概率的性别分类
+        gender_net.setInput(blob)
+        gender_pre = gender_net.forward()
+        gender = gender_list[gender_pre[0].argmax()]  # 获取最高概率的性别分类
 
         # 预测年龄
-        ageNet.setInput(blob)
-        agePreds = ageNet.forward()
-        age = ageList[agePreds[0].argmax()]  # 获取最高概率的年龄分类
+        age_net.setInput(blob)
+        age_pre = age_net.forward()
+        age = age_list[age_pre[0].argmax()]  # 获取最高概率的年龄分类
 
         return gender, age
     except Exception as e:
@@ -806,30 +806,30 @@ def predict_gender_age(face_img, genderNet, ageNet, genderList, ageList, MODEL_M
         return "Unknown", "Unknown"  # 返回未知值
 
 
-def highlightFace(net, frame, conf_threshold=0.2):
+def highlight_face(net, frame, conf_threshold=0.2):
     """在帧中检测人脸，只返回人脸框坐标，不绘制边界框"""
-    frameHeight = frame.shape[0]  # 获取帧高度
-    frameWidth = frame.shape[1]  # 获取帧宽度
+    frame_height = frame.shape[0]  # 获取帧高度
+    frame_width = frame.shape[1]  # 获取帧宽度
 
     # 预处理图像
     blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), [104, 117, 123], True, False)
 
     net.setInput(blob)  # 设置输入
     detections = net.forward()  # 进行人脸检测
-    faceBoxes = []  # 存储人脸边界框
+    face_boxes = []  # 存储人脸边界框
 
     # 处理检测结果
     for i in range(detections.shape[2]):
         confidence = detections[0, 0, i, 2]  # 获取置信度
         if confidence > conf_threshold:  # 过滤低置信度检测
             # 计算边界框坐标
-            x1 = int(detections[0, 0, i, 3] * frameWidth)
-            y1 = int(detections[0, 0, i, 4] * frameHeight)
-            x2 = int(detections[0, 0, i, 5] * frameWidth)
-            y2 = int(detections[0, 0, i, 6] * frameHeight)
-            faceBoxes.append([x1, y1, x2, y2])  # 添加到人脸框列表
+            x1 = int(detections[0, 0, i, 3] * frame_width)
+            y1 = int(detections[0, 0, i, 4] * frame_height)
+            x2 = int(detections[0, 0, i, 5] * frame_width)
+            y2 = int(detections[0, 0, i, 6] * frame_height)
+            face_boxes.append([x1, y1, x2, y2])  # 添加到人脸框列表
 
-    return faceBoxes  # 只返回人脸框坐标
+    return face_boxes  # 只返回人脸框坐标
 
 
 def people_counter():
