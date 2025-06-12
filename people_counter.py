@@ -118,27 +118,27 @@ def generate_summary(total_entries, gender_count, age_count, peak_periods, low_p
 
     with open(output_path, 'w') as f:
         f.write("------------------------------------------\n")
-        f.write(f"总人数:{total_entries}人\n")
-        f.write(f"男性:{gender_count.get('Male', 0)}人\n")
-        f.write(f"女性:{gender_count.get('Female', 0)}人\n")
-        f.write(f"未知性别:{gender_count.get('Unknown', 0)}人\n")
-        f.write(f"儿童:{children_count}人\n")
+        f.write(f"Total People: {total_entries}\n")
+        f.write(f"Male: {gender_count.get('Male', 0)}\n")
+        f.write(f"Female: {gender_count.get('Female', 0)}\n")
+        f.write(f"Children: {children_count}\n")
+        f.write(f"Unknown Gender: {gender_count.get('Unknown', 0)}\n")
         f.write("-----------------------------------------\n")
 
-        # 如果是最终报告，则输出阈值设置和高峰低峰时间段
+        # For final report, add threshold settings and peak/low periods
         if is_final:
-            # 添加阈值信息
-            f.write(f"[阈值设置]\n高峰阈值: {PEAK_THRESHOLD}人, 低峰阈值: {LOW_THRESHOLD}人\n")
-            f.write(f"最高人数:{peak_count}人, 最低人数:{low_count}人\n")
+            # Add threshold information
+            f.write(f"[Threshold Settings]\nPeak Threshold: {PEAK_THRESHOLD}, Low Threshold: {LOW_THRESHOLD}\n")
+            f.write(f"Max Count: {peak_count}, Min Count: {low_count}\n")
             f.write("-----------------------------------------\n")
 
-            # 输出所有高峰时间段
-            f.write("高峰时间段:\n")
+            # Output all peak periods
+            f.write("Peak Periods:\n")
             if peak_periods:
-                # 过滤掉无效时间段
+                # Filter out invalid periods
                 valid_peak_periods = [p for p in peak_periods if p[0] != p[1]]
                 if valid_peak_periods:
-                    # 去重处理
+                    # Deduplicate
                     unique_peak_periods = []
                     for period in valid_peak_periods:
                         if period not in unique_peak_periods:
@@ -148,17 +148,17 @@ def generate_summary(total_entries, gender_count, age_count, peak_periods, low_p
                         start_time, end_time = period
                         f.write(f"{start_time}~{end_time}\n")
                 else:
-                    f.write("无有效高峰时间段\n")
+                    f.write("No Valid Peak Periods\n")
             else:
-                f.write("无高峰时间段\n")
+                f.write("No Peak Periods\n")
 
-            # 输出所有低峰时间段
-            f.write("\n低峰时间段:\n")
+            # Output all low periods
+            f.write("\nLow Periods:\n")
             if low_periods:
-                # 过滤掉无效时间段
+                # Filter out invalid periods
                 valid_low_periods = [p for p in low_periods if p[0] != p[1]]
                 if valid_low_periods:
-                    # 去重处理
+                    # Deduplicate
                     unique_low_periods = []
                     for period in valid_low_periods:
                         if period not in unique_low_periods:
@@ -168,9 +168,9 @@ def generate_summary(total_entries, gender_count, age_count, peak_periods, low_p
                         start_time, end_time = period
                         f.write(f"{start_time}~{end_time}\n")
                 else:
-                    f.write("无有效低峰时间段\n")
+                    f.write("No Valid Low Periods\n")
             else:
-                f.write("无低峰时间段\n")
+                f.write("No Low Periods\n")
             f.write("-----------------------------------------\n")
 
     logger.info(f"Summary report generated: {output_path}")
@@ -719,7 +719,7 @@ def process_video(input_video, output_path=None, args=None):
 
     # 确保事件数量与总人数一致
     if len(events) != total_count:
-        logger.warning(f"事件数量({len(events)})与总人数({total_count})不一致，正在修复...")
+        logger.warning(f"Event count ({len(events)}) does not match total people count ({total_count}), fixing...")
         # 创建唯一对象ID列表
         unique_ids = set()
         for to in trackableObjects.values():
@@ -728,7 +728,7 @@ def process_video(input_video, output_path=None, args=None):
 
         # 更新总人数
         total_count = len(unique_ids)
-        logger.info(f"修复后总人数: {total_count}人")
+        logger.info(f"Total count after fixing: {total_count}")
 
     # 清理资源
     fps.stop()  # 停止帧率计数器
@@ -846,12 +846,13 @@ def people_counter():
     if video_files:  # 如果有视频文件
         # 记录总体开始时间
         total_start_time = time.time()
-        logger.info(f"[TIMING] 开始处理所有视频，时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(
+            f"[TIMING] Started processing all videos. Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
         for video_file in video_files:  # 遍历每个视频文件
             # 记录单个视频开始时间
             video_start_time = time.time()
-            logger.info(f"[TIMING] 开始处理视频: {os.path.basename(video_file)}")
+            logger.info(f"[TIMING] Starting video processing: {os.path.basename(video_file)}")
 
             # 生成输出文件名
             output_filename = os.path.splitext(os.path.basename(video_file))[0] + "_output.mp4"
@@ -868,12 +869,13 @@ def people_counter():
             # 计算并输出单个视频处理时间
             video_elapsed = time.time() - video_start_time
             mins, secs = divmod(video_elapsed, 60)
-            logger.info(f"[TIMING] 完成视频处理: {os.path.basename(video_file)} - 用时: {int(mins)}分{secs:.2f}秒")
+            logger.info(
+                f"[TIMING] Finished processing video: {os.path.basename(video_file)} - Time taken: {int(mins)}m {secs:.2f}s")
 
         # 计算并输出所有视频总处理时间
         total_elapsed = time.time() - total_start_time
         total_mins, total_secs = divmod(total_elapsed, 60)
-        logger.info(f"[TIMING] 所有视频处理完成 - 总用时: {int(total_mins)}分{total_secs:.2f}秒")
+        logger.info(f"[TIMING] All videos processing completed - Total time: {int(total_mins)}m {total_secs:.2f}s")
 
     else:
         logger.info("No video files found")  # 没有找到视频文件
