@@ -5,7 +5,7 @@
     "video_folder": "./utils/data/tests",
     "model_folder": "./detector",
     "output_folder": "",
-    "segment_reporting": false,
-    "report_percentage": 0.2,
+    "segment_reporting": true,
+    "report_percentage": 0.05,
     "save_faces": false
 }
