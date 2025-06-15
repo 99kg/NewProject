@@ -329,7 +329,10 @@ def process_video(input_video, output_path=None, args=None):
         # 调整帧尺寸
         frame = imutils.resize(frame, width=500)
 
-        # 修复:确保图像是连续的 uint8 数组 (针对 macOS M 系列芯片)
+        ########################################################
+        # 针对 macOS M 系列芯片的关键修复开始
+        ########################################################
+        # 确保图像是连续的 uint8 数组
         if not frame.flags['C_CONTIGUOUS']:
             frame = np.ascontiguousarray(frame)
         if frame.dtype != np.uint8:
@@ -342,6 +345,9 @@ def process_video(input_video, output_path=None, args=None):
         # 确保 RGB 是 3 通道 (移除可能的 alpha 通道)
         if rgb.shape[2] == 4:
             rgb = rgb[:, :, :3]
+        ########################################################
+        # 针对 macOS M 系列芯片的关键修复结束
+        ########################################################
 
         # 初始化帧尺寸
         if w is None or h is None:
